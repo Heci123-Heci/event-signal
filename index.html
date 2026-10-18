@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>事件合约行情观察</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--card:#141f31;--muted:#9aa9bd;--line:#29374b;--accent:#76a9ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#eef4ff;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:680px;margin:auto;padding:20px 15px 36px}.sub{color:var(--muted);font-size:13px;line-height:1.5}
+h1{font-size:23px;margin:8px 0}h2{font-size:16px;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:14px 0}
+label{display:block;color:var(--muted);font-size:13px;margin:10px 0 6px}
+select,button{width:100%;border-radius:11px;border:1px solid #34445d;background:#0e1726;color:#f3f7ff;padding:13px;font-size:16px}
+button{background:#3478f6;border:0;font-weight:650;margin-top:14px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pill{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:5px 9px;font-size:12px;color:var(--muted)}
+.big{font-size:27px;font-weight:750;margin:7px 0}.muted{color:var(--muted)}.green{color:#67e2ad}.red{color:#ff8d9a}.yellow{color:#ffd27b}
+.item{padding:10px 0;border-bottom:1px solid var(--line);line-height:1.5}.item:last-child{border-bottom:0}
+code{overflow-wrap:anywhere;color:#bcd4ff}.hidden{display:none}.small{font-size:12px;color:var(--muted);line-height:1.55}
+</style></head>
+<body><main>
+<div class="pill">手机网页测试版 · 不下单</div>
+<h1>事件合约行情观察</h1>
+<p class="sub">读取公开行情并给出透明的技术面观察。不是交易指令，不保证方向；暂不输出未经回测校准的胜率或虚构入场价。</p>
+<section class="card">
+<label for="platform">平台</label><select id="platform"><option value="binance">Binance 行情参考</option><option value="hibt">HIBT（接口待核实）</option></select>
+<div id="binanceControls">
+<div class="row"><div><label for="symbol">币种</label><select id="symbol"><option>BTCUSDT</option><option>ETHUSDT</option><option>BNBUSDT</option><option>SOLUSDT</option><option>XRPUSDT</option><option>DOGEUSDT</option><option>ADAUSDT</option><option>LINKUSDT</option><option>AVAXUSDT</option><option>TONUSDT</option></select></div>
+<div><label for="interval">观察周期</label><select id="interval"><option value="3m">3分钟</option><option value="5m">5分钟</option><option value="10m">10分钟（由1m数据聚合）</option></select></div></div>
+<label for="source">数据源</label><select id="source"><option value="futures">Binance USDⓈ-M 合约K线</option><option value="spot">Binance 现货K线</option></select>
+<button id="run">获取最新数据并分析</button>
+</div>
+<div id="hibtControls" class="hidden"><p class="yellow">目前没有经过核实的 HIBT 官方事件合约行情/结算接口。本页不会用 Binance 行情冒充 HIBT 合约结算价。</p></div>
+</section>
+<section class="card"><h2>分析结果</h2><div id="status" class="muted">等待开始。需要网络连接；如果接口被网络策略拦截，会显示失败原因。</div><div id="result" class="hidden"></div></section>
+<section class="card"><h2>使用边界</h2><div class="small">• Binance公开K线只是行情参考，不等于事件合约最终结算依据。<br>• 方向分数是简单技术指标合成，不是概率，也没有经过历史回测校准。<br>• 事件合约可能在判断错误时损失全部投入金额；先核对合约规则、结算价来源、截止时间和赔率。<br>• 本页只读取公开数据，不连接账户、不保存密钥、不自动交易。</div></section>
+<footer class="small">数据接口：Binance 公共市场数据。页面更新时间以每次查询结果为准。</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+$('platform').addEventListener('change',()=>{let h=$('platform').value==='hibt';$('binanceControls').classList.toggle('hidden',h);$('hibtControls').classList.toggle('hidden',!h);$('result').classList.add('hidden');$('status').textContent=h?'HIBT接口未核实，暂不能生成可信的合约分析。':'等待开始。';});
+function fmt(n){return Number(n).toLocaleString('en-US',{maximumFractionDigits:8});}
+function ema(arr,p){let k=2/(p+1),v=arr[0];for(let i=1;i<arr.length;i++)v=arr[i]*k+v*(1-k);return v;}
+function aggregate(candles,n){let out=[];for(let i=0;i+n<=candles.length;i+=n){let a=candles.slice(i,i+n);out.push({t:a[0][0],o:+a[0][1],h:Math.max(...a.map(x=>+x[2])),l:Math.min(...a.map(x=>+x[3])),c:+a[a.length-1][4],v:a.reduce((s,x)=>s+(+x[5]),0)});}return out;}
+$('run').addEventListener('click',async()=>{
+ if($('platform').value==='hibt'){ $('status').textContent='HIBT官方接口尚未核实；为避免误导，停止分析。';$('result').classList.add('hidden');return;}
+ const btn=$('run');btn.disabled=true;btn.textContent='正在获取数据…';$('result').classList.add('hidden');$('status').textContent='正在请求 Binance 公共行情接口…';
+ try{
+ const symbol=$('symbol').value, interval=$('interval').value, source=$('source').value;
+ const base=source==='futures'?'https://fapi.binance.com/fapi/v1/klines':'https://api.binance.com/api/v3/klines';
+ const rawInterval=interval==='10m'?'1m':interval;
+ const url=base+'?symbol='+encodeURIComponent(symbol)+'&interval='+rawInterval+'&limit='+(interval==='10m'?120:100);
+ const resp=await fetch(url,{cache:'no-store'});if(!resp.ok)throw new Error('接口返回 HTTP '+resp.status+'。可能是网络、地区访问或接口限制。');
+ const raw=await resp.json();if(!Array.isArray(raw)||raw.length<30)throw new Error('返回数据不足，无法分析。');
+ const cs=interval==='10m'?aggregate(raw,10):raw.map(x=>({t:x[0],o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]}));
+ if(cs.length<25)throw new Error('聚合后K线不足。');
+ const closes=cs.map(x=>x.c),last=cs[cs.length-1],prev=cs[cs.length-2];
+ const e9=ema(closes.slice(-40),9),e21=ema(closes.slice(-60),21);
+ const ret3=(last.c/closes[closes.length-4]-1)*100, ret10=(last.c/closes[closes.length-11]-1)*100;
+ const avgVol=cs.slice(-21,-1).reduce((s,x)=>s+x.v,0)/20,volRatio=avgVol?last.v/avgVol:0;
+ let score=0;score+=e9>e21?1:-1;score+=last.c>e9?1:-1;score+=ret3>0.08?1:ret3<-.08?-1:0;score+=ret10>0.15?1:ret10<-.15?-1:0;
+ let direction=score>=2?'偏多':score<=-2?'偏空':'震荡/信号不一致',cls=score>=2?'green':score<=-2?'red':'yellow';
+ let confirms=score>=2?'观察是否回踩短期均线后企稳，并等待下一根K线确认。':score<=-2?'观察反弹是否受短期均线压制，并等待下一根K线确认。':'暂不追方向；等待价格、均线与短周期动量形成一致信号。';
+ let risk=volRatio>1.8?'当前成交量明显高于近20根均值，波动可能放大。':'单一技术信号容易反转，尤其临近事件结算时。';
+ $('status').textContent='获取成功 · '+new Date().toLocaleString()+' · '+(source==='futures'?'合约K线':'现货K线');
+ $('result').innerHTML='<div class="pill">'+symbol+' · '+interval+' · '+(source==='futures'?'USDⓈ-M合约参考':'现货参考')+'</div><div class="big '+cls+'">'+direction+'</div><div class="item"><b>最新收盘参考价</b><br>'+fmt(last.c)+' <span class="muted">（K线时间 '+new Date(last.t).toLocaleString()+'）</span></div><div class="item"><b>技术分数</b><br>'+score+' / 4 <span class="muted">（规则分，不是胜率）</span></div><div class="item"><b>指标摘要</b><br>EMA9 '+(e9>e21?'高于':'低于')+' EMA21；最近3根变化 '+ret3.toFixed(3)+'%；最近10根变化 '+ret10.toFixed(3)+'%；最新量/近20根均量 '+volRatio.toFixed(2)+' 倍。</div><div class="item"><b>确认条件</b><br>'+confirms+'</div><div class="item"><b>风险提示</b><br>'+risk+' 本页不提供未经验证的精确入场价或胜率。</div><div class="item"><b>下一步</b><br>请先核对目标事件合约采用的结算标的、价格来源、截止时间及赔率；此处行情不能直接代表合约结算。</div>';
+ $('result').classList.remove('hidden');
+ }catch(e){$('status').textContent='获取失败：'+e.message+' 如果网页还未部署到 HTTPS 网站，请先部署后再测试；本地文件打开可能受浏览器跨域限制。';}
+ finally{btn.disabled=false;btn.textContent='获取最新数据并分析';}
+});
+</script></body></html>
