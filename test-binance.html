@@ -1,0 +1,195 @@
+
+
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>币安合约行情直连测试</title>
+
+<style>
+
+body{font-family:-apple-system,sans-serif;background:#10151f;color:#eee;padding:20px;line-height:1.6}
+
+.card{background:#1b2433;padding:16px;border-radius:12px;margin:12px 0}
+
+button,select{padding:12px;border-radius:8px;border:0;margin:5px 4px 5px 0;font-size:16px}
+
+button{background:#f0b90b;color:#111;font-weight:bold}
+
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
+
+.good{color:#65df9a}.bad{color:#ff7b7b}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>币安 USDⓈ-M 合约直连测试</h2>
+
+<p>只读取行情，不会下单。测试是否能从 GitHub Pages 直接获取真实合约 K 线。</p>
+
+<div class="card">
+
+<label>交易对：</label>
+
+<select id="symbol">
+
+<option>BTCUSDT</option><option>ETHUSDT</option>
+
+<option>BNBUSDT</option><option>SOLUSDT</option>
+
+<option>XRPUSDT</option><option>DOGEUSDT</option>
+
+</select>
+
+<br>
+
+<label>周期：</label>
+
+<select id="interval">
+
+<option>1m</option><option>3m</option><option>5m</option>
+
+<option>15m</option><option>30m</option>
+
+<option>1h</option><option>4h</option><option>1d</option>
+
+</select>
+
+<br>
+
+<button id="test">测试获取 K 线</button>
+
+<button id="auto">开启每 15 秒刷新</button>
+
+</div>
+
+<div class="card">
+
+<strong>测试结果：</strong>
+
+<p id="status">等待测试</p>
+
+<p id="price">最新收盘价：—</p>
+
+<p id="time">K 线时间：—</p>
+
+<p id="updated">更新时间：—</p>
+
+</div>
+
+<div class="card">
+
+<strong>返回数据（最多显示 3 根）：</strong>
+
+<pre id="output">尚未请求</pre>
+
+</div>
+
+<script>
+
+const $=id=>document.getElementById(id);
+
+let timer=null;
+
+async function test(){
+
+  const symbol=$("symbol").value;
+
+  const interval=$("interval").value;
+
+  $("status").textContent="正在请求币安官方合约接口…";
+
+  $("status").className="";
+
+  $("output").textContent="请求中…";
+
+  try{
+
+    const url="https://fapi.binance.com/fapi/v1/klines"
+
+      +"?symbol="+encodeURIComponent(symbol)
+
+      +"&interval="+encodeURIComponent(interval)
+
+      +"&limit=3";
+
+    const response=await fetch(url,{cache:"no-store"});
+
+    if(!response.ok) throw new Error("HTTP "+response.status);
+
+    const data=await response.json();
+
+    if(!Array.isArray(data)||!data.length)
+
+      throw new Error("返回数据为空或格式不正确");
+
+    const last=data[data.length-1];
+
+    $("status").textContent="成功：已获取真实合约 K 线";
+
+    $("status").className="good";
+
+    $("price").textContent="最新收盘价："+last[4];
+
+    $("time").textContent="K 线开盘时间："+new Date(last[0]).toLocaleString();
+
+    $("updated").textContent="本机更新时间："+new Date().toLocaleTimeString();
+
+    $("output").textContent=JSON.stringify(data,null,2);
+
+  }catch(e){
+
+    $("status").textContent="失败："+e.message;
+
+    $("status").className="bad";
+
+    $("price").textContent="最新收盘价：—";
+
+    $("time").textContent="K 线时间：—";
+
+    $("output").textContent=
+
+      "错误："+String(e)+"\n\n"+
+
+      "如果出现 Failed to fetch 或 NetworkError，可能是浏览器跨域或网络问题；"+
+
+      "如果出现 HTTP 403，则请求被拒绝。请把这里的错误文字发回。";
+
+  }
+
+}
+
+$("test").addEventListener("click",test);
+
+$("auto").addEventListener("click",()=>{
+
+  if(timer){
+
+    clearInterval(timer);timer=null;
+
+    $("auto").textContent="开启每 15 秒刷新";
+
+  }else{
+
+    test();timer=setInterval(test,15000);
+
+    $("auto").textContent="停止自动刷新";
+
+  }
+
+});
+
+</script>
+
+</body>
+
+</html>
